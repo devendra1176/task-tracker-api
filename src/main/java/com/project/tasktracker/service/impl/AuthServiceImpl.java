@@ -6,6 +6,8 @@ import com.project.tasktracker.entity.User;
 import com.project.tasktracker.repository.UserRepository;
 import com.project.tasktracker.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +20,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
     @Override
     public String signup(SignupRequestDTO dto) {
 
@@ -28,8 +33,6 @@ public class AuthServiceImpl implements AuthService {
         User user = new User();
         user.setUsername(dto.getUsername());
         user.setEmail(dto.getEmail());
-
-        // password encode before saving
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
 
         userRepository.save(user);
@@ -40,13 +43,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String login(LoginRequestDTO dto) {
 
-        User user = userRepository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        // raw password vs encoded password compare
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password");
-        }
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        dto.getEmail(),
+                        dto.getPassword()
+                )
+        );
 
         return "Login successful";
     }
