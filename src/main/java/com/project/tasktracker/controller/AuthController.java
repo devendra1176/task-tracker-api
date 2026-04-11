@@ -1,5 +1,6 @@
 package com.project.tasktracker.controller;
 
+import com.project.tasktracker.dto.AuthResponseDTO;
 import com.project.tasktracker.dto.LoginRequestDTO;
 import com.project.tasktracker.dto.SignupRequestDTO;
 import com.project.tasktracker.service.AuthService;
@@ -18,15 +19,13 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
-    // SIGNUP API
     @PostMapping("/signup")
     public ResponseEntity<String> signup(@Valid @RequestBody SignupRequestDTO dto) {
         return ResponseEntity.ok(authService.signup(dto));
     }
 
-    // LOGIN API
     @PostMapping("/login")
-    public ResponseEntity<String> login(@Valid @RequestBody LoginRequestDTO dto) {
+    public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO dto) {
         return ResponseEntity.ok(authService.login(dto));
     }
 }

@@ -1,10 +1,12 @@
 package com.project.tasktracker.service.impl;
 
+import com.project.tasktracker.dto.AuthResponseDTO;
 import com.project.tasktracker.dto.LoginRequestDTO;
 import com.project.tasktracker.dto.SignupRequestDTO;
 import com.project.tasktracker.entity.User;
 import com.project.tasktracker.repository.UserRepository;
 import com.project.tasktracker.service.AuthService;
+import com.project.tasktracker.service.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,6 +24,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtService jwtService;
 
     @Override
     public String signup(SignupRequestDTO dto) {
@@ -41,7 +46,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String login(LoginRequestDTO dto) {
+    public AuthResponseDTO login(LoginRequestDTO dto) {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -50,6 +55,8 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
-        return "Login successful";
+        String token = jwtService.generateToken(dto.getEmail());
+
+        return new AuthResponseDTO(token, "Login successful");
     }
 }
