@@ -3,16 +3,20 @@ package com.project.tasktracker.service.impl;
 import com.project.tasktracker.dto.TaskRequestDTO;
 import com.project.tasktracker.dto.TaskResponseDTO;
 import com.project.tasktracker.entity.Task;
+import com.project.tasktracker.entity.User;
 import com.project.tasktracker.enums.Priority;
 import com.project.tasktracker.enums.TaskStatus;
 import com.project.tasktracker.exception.ResourceNotFoundException;
 import com.project.tasktracker.repository.TaskRepository;
+import com.project.tasktracker.repository.UserRepository;
 import com.project.tasktracker.service.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,6 +28,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Autowired
     private TaskRepository taskRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     // 🔄 DTO → ENTITY
     private Task mapToEntity(TaskRequestDTO dto) {
@@ -38,34 +45,42 @@ public class TaskServiceImpl implements TaskService {
 
     // 🔄 ENTITY → DTO
     private TaskResponseDTO mapToDTO(Task task) {
+
         TaskResponseDTO dto = new TaskResponseDTO();
+
         dto.setId(task.getId());
         dto.setTitle(task.getTitle());
         dto.setDescription(task.getDescription());
         dto.setStatus(task.getStatus());
         dto.setPriority(task.getPriority());
         dto.setDueDate(task.getDueDate());
+
         return dto;
     }
 
-    // CREATE TASK
     @Override
     public TaskResponseDTO createTask(TaskRequestDTO dto) {
 
-        Task task = mapToEntity(dto); // DTO → Entity
+        User currentUser = getCurrentUser();
+
+        Task task = mapToEntity(dto);
+
+        task.setUser(currentUser);
 
         Task savedTask = taskRepository.save(task);
 
-        return mapToDTO(savedTask); // Entity → DTO
+        return mapToDTO(savedTask);
     }
+
 
     // GET ALL TASKS
     @Override
     public List<TaskResponseDTO> getAllTasks() {
 
-        List<Task> tasks = taskRepository.findAll();
+        User currentUser = getCurrentUser();
 
-        // List<Entity> → List<DTO>
+        List<Task> tasks = taskRepository.findByUser(currentUser);
+
         return tasks.stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -75,7 +90,9 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskResponseDTO getTaskById(Long id) {
 
-        Task task = taskRepository.findById(id)
+        User currentUser = getCurrentUser();
+
+        Task task = taskRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
         return mapToDTO(task);
@@ -85,10 +102,11 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskResponseDTO updateTask(Long id, TaskRequestDTO dto) {
 
-        Task existingTask = taskRepository.findById(id)
+        User currentUser = getCurrentUser();
+
+        Task existingTask = taskRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
-        // Update fields
         existingTask.setTitle(dto.getTitle());
         existingTask.setDescription(dto.getDescription());
         existingTask.setStatus(dto.getStatus());
@@ -104,10 +122,12 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskResponseDTO updateStatus(Long id, String value) {
 
-        Task task = taskRepository.findById(id)
+        User currentUser = getCurrentUser();
+
+        Task task = taskRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
-        task.setStatus(TaskStatus.valueOf(value)); //JSON -> ENUM
+        task.setStatus(TaskStatus.valueOf(value));
 
         Task updated = taskRepository.save(task);
 
@@ -119,7 +139,9 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public void deleteTask(Long id) {
 
-        Task task = taskRepository.findById(id)
+        User currentUser = getCurrentUser();
+
+        Task task = taskRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
 
         taskRepository.delete(task);
@@ -139,7 +161,9 @@ public class TaskServiceImpl implements TaskService {
 
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Task> taskPage = taskRepository.findAll(pageable);
+        User currentUser = getCurrentUser();
+
+        Page<Task> taskPage = taskRepository.findByUser(currentUser, pageable);
 
         return taskPage.map(this::mapToDTO);
     }
@@ -154,6 +178,8 @@ public class TaskServiceImpl implements TaskService {
             TaskStatus status,
             Priority priority) {
 
+        User currentUser = getCurrentUser(); // 🔥 ADD THIS
+
         Sort sort = direction.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
@@ -163,13 +189,13 @@ public class TaskServiceImpl implements TaskService {
         Page<Task> taskPage;
 
         if (status != null && priority != null) {
-            taskPage = taskRepository.findByStatusAndPriority(status, priority, pageable);
+            taskPage = taskRepository.findByUserAndStatusAndPriority(currentUser, status, priority, pageable);
         } else if (status != null) {
-            taskPage = taskRepository.findByStatus(status, pageable);
+            taskPage = taskRepository.findByUserAndStatus(currentUser, status, pageable);
         } else if (priority != null) {
-            taskPage = taskRepository.findByPriority(priority, pageable);
+            taskPage = taskRepository.findByUserAndPriority(currentUser, priority, pageable);
         } else {
-            taskPage = taskRepository.findAll(pageable);
+            taskPage = taskRepository.findByUser(currentUser, pageable);
         }
 
         return taskPage.map(this::mapToDTO);
@@ -184,6 +210,8 @@ public class TaskServiceImpl implements TaskService {
             String sortBy,
             String direction) {
 
+        User currentUser = getCurrentUser(); // 🔥 ADD THIS
+
         Sort sort = direction.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
@@ -191,13 +219,27 @@ public class TaskServiceImpl implements TaskService {
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Task> taskPage = taskRepository
-                .findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                .findByUserAndTitleContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
+                        currentUser,
                         keyword,
+                        currentUser,
                         keyword,
                         pageable
                 );
 
         return taskPage.map(this::mapToDTO);
     }
+
+    private User getCurrentUser() {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        assert authentication != null;
+        String email = authentication.getName();
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+    }
+
 
 }

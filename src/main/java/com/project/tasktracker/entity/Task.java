@@ -18,6 +18,10 @@ public class Task {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY) //Many tasks -> One user
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @Column
     private String title;
 
