@@ -1,5 +1,7 @@
 package com.project.tasktracker.controller;
 
+import com.project.tasktracker.dto.ApiResponse;
+import com.project.tasktracker.dto.PagedResponse;
 import com.project.tasktracker.dto.TaskRequestDTO;
 import com.project.tasktracker.dto.TaskResponseDTO;
 import com.project.tasktracker.enums.Priority;
@@ -10,8 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/tasks")
@@ -24,21 +29,47 @@ public class TaskController {
 
     //  1. CREATE TASK
     @PostMapping
-    public TaskResponseDTO createTask(@Valid @RequestBody TaskRequestDTO dto) {
-        return taskService.createTask(dto);
+    public ResponseEntity<ApiResponse<TaskResponseDTO>> createTask(@Valid @RequestBody TaskRequestDTO dto) {
+
+        TaskResponseDTO createdTask = taskService.createTask(dto);
+
+        ApiResponse<TaskResponseDTO> response = new ApiResponse<>(
+                true,
+                "Task created successfully",
+                createdTask,
+                LocalDateTime.now()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // 2. GET ALL TASKS
     @GetMapping
-    public ResponseEntity<Page<TaskResponseDTO>> getTasks(
+    public ResponseEntity<ApiResponse<PagedResponse<TaskResponseDTO>>> getTasks(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "2") int size,
+            @RequestParam(defaultValue = "5") int size,
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
-        return ResponseEntity.ok(
-                taskService.getAllTasksPaginated(page, size, sortBy, direction)
+        Page<TaskResponseDTO> taskPage = taskService.getAllTasksPaginated(page, size, sortBy, direction);
+
+        PagedResponse<TaskResponseDTO> pagedData = new PagedResponse<>(
+                taskPage.getContent(),
+                taskPage.getNumber(),
+                taskPage.getSize(),
+                taskPage.getTotalElements(),
+                taskPage.getTotalPages(),
+                taskPage.isLast()
         );
+
+        ApiResponse<PagedResponse<TaskResponseDTO>> response = new ApiResponse<>(
+                true,
+                "Tasks fetched successfully",
+                pagedData,
+                LocalDateTime.now()
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     //3. Get Filtered Task
@@ -74,9 +105,18 @@ public class TaskController {
 
     // 5. GET TASK BY ID
     @GetMapping("/{id}")
-    public TaskResponseDTO getTaskById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<TaskResponseDTO>> getTaskById(@PathVariable Long id) {
+
+        TaskResponseDTO task = taskService.getTaskById(id);
+
+        ApiResponse<TaskResponseDTO> response = new ApiResponse<>(
+                true,
+                "Task fetched successfully",
+                task,
+                LocalDateTime.now()
+        );
         log.info("Received request to fetch Task  id : {}", id);
-        return taskService.getTaskById(id);
+        return ResponseEntity.ok(response);
     }
 
     // 6. UPDATE TASK (FULL UPDATE)
@@ -97,11 +137,21 @@ public class TaskController {
     }
 
     //  8. DELETE TASK
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteTask(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable Long id) {
         log.info("Received request to delete task with id: {}", id);
         taskService.deleteTask(id);
-        return ResponseEntity.ok("Task deleted successfully");
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                true,
+                "Task deleted successfully",
+                null,
+                LocalDateTime.now()
+        );
+
+        return ResponseEntity.ok(response);
     }
+
 
 }
