@@ -7,6 +7,8 @@ import com.project.tasktracker.entity.User;
 import com.project.tasktracker.repository.UserRepository;
 import com.project.tasktracker.service.AuthService;
 import com.project.tasktracker.service.JwtService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -30,7 +34,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public String signup(SignupRequestDTO dto) {
-
+        log.info("Registering new user with email: {}", dto.getEmail());
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
             throw new RuntimeException("User already exists with this email");
         }
@@ -41,7 +45,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
 
         userRepository.save(user);
-
+        log.info("User registered successfully with email: {}", dto.getEmail());
         return "User registered successfully";
     }
 
@@ -56,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         String token = jwtService.generateToken(dto.getEmail());
-
+        log.info("Login successful for email: {}", dto.getEmail());
         return new AuthResponseDTO(token, "Login successful");
     }
 }

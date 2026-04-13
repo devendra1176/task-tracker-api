@@ -6,6 +6,8 @@ import com.project.tasktracker.enums.Priority;
 import com.project.tasktracker.enums.TaskStatus;
 import com.project.tasktracker.service.TaskService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/tasks")
 public class TaskController {
+
+    private static final Logger log = LoggerFactory.getLogger(TaskController.class);
 
     @Autowired
     private TaskService taskService;
@@ -46,6 +50,8 @@ public class TaskController {
             @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) TaskStatus status,
             @RequestParam(required = false) Priority priority) {
+        log.info("Received request to fetch tasks. page={}, size={}, sortBy={}, direction={}",
+                page, size, sortBy, direction);
 
         return ResponseEntity.ok(
                 taskService.getFilteredTasks(page, size, sortBy, direction, status, priority)
@@ -69,6 +75,7 @@ public class TaskController {
     // 5. GET TASK BY ID
     @GetMapping("/{id}")
     public TaskResponseDTO getTaskById(@PathVariable Long id) {
+        log.info("Received request to fetch Task  id : {}", id);
         return taskService.getTaskById(id);
     }
 
@@ -76,6 +83,7 @@ public class TaskController {
     @PutMapping("/{id}")
     public TaskResponseDTO updateTask(@PathVariable Long id,
                                       @Valid @RequestBody TaskRequestDTO dto) {
+        log.info("Received request to update task with id: {}", id);
         return taskService.updateTask(id, dto);
     }
 
@@ -84,14 +92,16 @@ public class TaskController {
     @PatchMapping("/{id}/status")
     public TaskResponseDTO updateStatus(@PathVariable Long id,
                                         @RequestParam String value) {
+        log.info("Received request to update status for task id: {} with value: {}", id, value);
         return taskService.updateStatus(id, value);
     }
 
     //  8. DELETE TASK
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteTask(@PathVariable Long id) {
+        log.info("Received request to delete task with id: {}", id);
         taskService.deleteTask(id);
         return ResponseEntity.ok("Task deleted successfully");
     }
-    
+
 }
