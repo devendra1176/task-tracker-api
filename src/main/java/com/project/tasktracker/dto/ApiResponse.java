@@ -16,7 +16,7 @@ public class ApiResponse<T> {
         this.success = success;
         this.message = message;
         this.data = data;
-        this.timestamp = timestamp;
+        this.timestamp = LocalDateTime.now();
     }
 
     public boolean isSuccess() {
