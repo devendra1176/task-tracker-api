@@ -1,5 +1,6 @@
 package com.project.tasktracker.exception;
 
+import com.project.tasktracker.dto.ApiResponse;
 import com.project.tasktracker.dto.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +102,30 @@ public class GlobalExceptionHandler {
         );
 
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
+
+        if (ex.getMessage().contains("User already exists")) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new ApiResponse<>(
+                            false,
+                            ex.getMessage(),
+                            null,
+                            null
+                    ));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(
+                        false,
+                        "Something went wrong",
+                        null,
+                        null
+                ));
     }
 
 }
