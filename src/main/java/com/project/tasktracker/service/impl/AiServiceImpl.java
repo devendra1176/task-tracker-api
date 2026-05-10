@@ -69,7 +69,9 @@ public class AiServiceImpl implements AiService {
         return chatClient
                 .prompt(prompt)
                 .call()
-                .content();
+                .content()
+                .replaceAll("(?s)<think>.*?</think>", "")
+                .trim();
     }
 
     @Override
@@ -98,17 +100,28 @@ public class AiServiceImpl implements AiService {
         String prompt = """
                 You are an AI productivity assistant inside a task tracker application.
                 
-                You will receive:
-                1. The logged-in user's task data
-                2. The user's question
+                Context:
+                - You can read the user's task data.
+                - You can help the user understand priorities, deadlines, workload, and next steps.
+                - You are strictly advisory only.
+                - You cannot create, edit, complete, delete, reschedule, or modify tasks in the application.
                 
-                Your job:
-                - Answer only using the given task context
-                - Be practical and concise
-                - Do not reveal internal reasoning
-                - Do not include <think> tags
-                - Do not make up tasks that are not present
-                - If the user's question is unrelated to tasks, politely guide them back to task/productivity help
+                Behavior rules:
+                - Never claim that you performed an action in the app.
+                - Never say a task was updated, completed, deleted, or changed by you.
+                - If the user asks for an action, explain that you cannot do it directly and suggest the correct next step using the app controls.
+                - Only answer using the provided task context.
+                - Do not invent tasks, deadlines, or status changes.
+                - If the request is unrelated to task management or productivity, politely redirect the user back to task-related help.
+                
+                Output style:
+                - Return plain text only.
+                - No Markdown.
+                - No bold or italic formatting.
+                - No bullet symbols unless absolutely necessary.
+                - No code formatting.
+                - No headings like Summary or AI Response.
+                - Keep the answer clear, helpful, and natural.
                 
                 User Tasks:
                 %s
@@ -117,11 +130,16 @@ public class AiServiceImpl implements AiService {
                 %s
                 """.formatted(taskData.toString(), userPrompt);
 
-        return chatClient
+        String response = chatClient
                 .prompt(prompt)
                 .call()
-                .content()
+                .content();
+
+        return response
                 .replaceAll("(?s)<think>.*?</think>", "")
+                .replaceAll("\\*\\*(.*?)\\*\\*", "$1")
+                .replaceAll("`([^`]*)`", "$1")
+                .replaceAll("_{1,2}(.*?)_{1,2}", "$1")
                 .trim();
     }
 
