@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -13,9 +14,8 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    // Secret key should be long and secure
-    private static final String SECRET_KEY =
-            "your-very-secret-key-that-should-be-at-least-32-characters-long";
+    @Value("${jwt.secret}")
+    private String secretKey;
 
     // Extract username/email from token
     public String extractUsername(String token) {
@@ -27,7 +27,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24))
+                .expiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24))
                 .signWith(getSignInKey())
                 .compact();
     }
@@ -60,8 +60,7 @@ public class JwtService {
 
     // Generate signing key
     private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(java.util.Base64.getEncoder()
-                .encodeToString(SECRET_KEY.getBytes()));
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }
