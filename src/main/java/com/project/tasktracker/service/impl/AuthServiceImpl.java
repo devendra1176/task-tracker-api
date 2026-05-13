@@ -4,6 +4,7 @@ import com.project.tasktracker.dto.AuthResponseDTO;
 import com.project.tasktracker.dto.LoginRequestDTO;
 import com.project.tasktracker.dto.SignupRequestDTO;
 import com.project.tasktracker.entity.User;
+import com.project.tasktracker.exception.UserAlreadyExistsException;
 import com.project.tasktracker.repository.UserRepository;
 import com.project.tasktracker.service.AuthService;
 import com.project.tasktracker.service.JwtService;
@@ -36,7 +37,7 @@ public class AuthServiceImpl implements AuthService {
     public String signup(SignupRequestDTO dto) {
         log.info("Registering new user with email: {}", dto.getEmail());
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new RuntimeException("User already exists with this email");
+            throw new UserAlreadyExistsException("User already exists with this email");
         }
 
         User user = new User();

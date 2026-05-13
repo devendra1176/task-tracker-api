@@ -1,12 +1,12 @@
 package com.project.tasktracker.exception;
 
-import com.project.tasktracker.dto.ApiResponse;
 import com.project.tasktracker.dto.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -35,6 +35,35 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+
+        log.error("User already exists: {}", ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                false,
+                ex.getMessage(),
+                null,
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(AuthenticationException ex) {
+
+        log.error("Authentication failed: {}", ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                false,
+                "Invalid email or password",
+                null,
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    }
 
     //Handle IllegalArgumentException
     @ExceptionHandler(IllegalArgumentException.class)
@@ -50,22 +79,6 @@ public class GlobalExceptionHandler {
         );
 
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
-    }
-
-    //Handle all other exceptions
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
-
-        log.error("Unexpected error occurred", ex);
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                false,
-                "Something went wrong",
-                null,
-                LocalDateTime.now()
-        );
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -104,28 +117,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException ex) {
+    //Handle all other exceptions
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
 
-        if (ex.getMessage().contains("User already exists")) {
-            return ResponseEntity
-                    .badRequest()
-                    .body(new ApiResponse<>(
-                            false,
-                            ex.getMessage(),
-                            null,
-                            null
-                    ));
-        }
+        log.error("Unexpected error occurred", ex);
 
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(
-                        false,
-                        "Something went wrong",
-                        null,
-                        null
-                ));
+        ErrorResponse errorResponse = new ErrorResponse(
+                false,
+                "Something went wrong",
+                null,
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
 }
