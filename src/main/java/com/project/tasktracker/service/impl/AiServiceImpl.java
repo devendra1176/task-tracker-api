@@ -14,9 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -40,6 +38,14 @@ public class AiServiceImpl implements AiService {
         this.chatClient = chatClientBuilder.build();
     }
 
+    /**
+     * Returns current time in IST (India Standard Time)
+     */
+    private String getCurrentISTTime() {
+        return ZonedDateTime
+                .now(ZoneId.of("Asia/Kolkata"))
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a (zzz)"));
+    }
 
     private String calculateTimeRemaining(LocalDate dueDate) {
         if (dueDate == null) return "No due date";
@@ -60,12 +66,6 @@ public class AiServiceImpl implements AiService {
         return "Due in ~" + months + " month" + (months > 1 ? "s" : "");
     }
 
-    /**
-     * Calculate exact hours/minutes remaining for urgent tasks
-     */
-    /**
-     * Calculate exact hours/minutes remaining using BOTH dueDate AND dueTime
-     */
     private String calculateExactTimeRemaining(Task task) {
         if (task.getDueDate() == null) return "";
 
@@ -88,12 +88,12 @@ public class AiServiceImpl implements AiService {
             return "OVERDUE by " + overdueMinutes + "m 🚨";
         }
 
-        // Due very soon (< 1 hour)
+
         if (hoursLeft == 0 && minutesLeft > 0) {
             return "Due in " + minutesLeft + "m 🚨";
         }
 
-        // Due within 3 hours - URGENT
+
         if (hoursLeft < 3) {
             return "Due in " + hoursLeft + "h " + minutesLeft + "m 🔥";
         }
@@ -125,35 +125,37 @@ public class AiServiceImpl implements AiService {
         String prompt = """
                 You are an AI productivity assistant inside a task tracker application.
                 
+                ⏰ TIMEZONE CONTEXT (CRITICAL):
+                - Current time in India (IST): %s
+                - ALL time calculations MUST use IST (GMT+5:30)
+                - Use "Exact Time" field from task data — it's pre-calculated in IST
+                
                 CONTEXT:
                 - You can read the user's task data below.
-                - You are strictly advisory only.
-                - You CANNOT create, update, complete, delete, reschedule, or modify any task.
-                - Use "Exact Time" field for urgent tasks (due today/tomorrow).
-                
-                YOUR JOB:
-                - Analyze the user's tasks and give a short productivity summary.
-                - Point out what looks most important or urgent.
-                - Suggest the most sensible next step.
+                - You are strictly advisory only — CANNOT modify tasks.
                 - Stay grounded only in the given task data.
                 
-                FORMATTING:
-                - Use emojis to make text engaging: 📊🎯✅️💡🚀📅⏰
-                - Return plain text only (no markdown, bold, italics, headings).
-                - Keep response concise (under 150 words).
-                - Write naturally like a helpful assistant.
+                YOUR JOB:
+                1. Acknowledge completed tasks first (celebrate wins ✅)
+                2. Highlight what needs attention now (priority + time left)
+                3. Suggest 1-2 practical next steps
+                4. Keep tone supportive, not alarming
+                
+                FORMATTING RULES:
+                - Use emojis naturally: 📊🎯✅💡🚀📅⏰
+                - Plain text only (no markdown, bold, italics)
+                - Concise: under 120 words
+                - Natural, human tone
                 
                 ENDING RULE (Strictly Follow):
-                - Identify the single most urgent incomplete task (based on Priority + Time Left).
-                - Add a final line at the very end of your response in this exact format:
-                "⏰Next up: [Task Name] ([Exact Time or Time Left])"
-                - If "Exact Time" field has a value (e.g., "Due in 5h 23m"), USE IT.
-                - If "Exact Time" is empty, fall back to "Time Left" field.
-                - After that line, add a friendly closing: "Need help planning? Just ask! 💬"
-                - EXCEPTION: If ALL tasks are marked 'DONE', skip the urgency line and just say: "🎉 All caught up! Great job."
+                - If ALL tasks are DONE → "🎉 All caught up! Great job."
+                - Otherwise → Find the single most urgent incomplete task and add:
+                  "⏰ Next up: [Task Name] ([Exact Time or Time Left])
+                  Need help planning? Just ask! 💬"
+                
                 User Tasks:
                 %s
-                """.formatted(taskData);
+                """.formatted(getCurrentISTTime(), taskData);
         String response = chatClient.prompt(prompt).call().content();
 
         // Safety: Handle null response from AI
@@ -175,47 +177,52 @@ public class AiServiceImpl implements AiService {
         String taskData = tasks.isEmpty() ? "No tasks yet." : buildTaskContext(tasks);
 
         String prompt = """
-                You are a helpful AI assistant inside a productivity app.
+                You are a helpful, multilingual AI assistant inside a productivity app.
                 
-                CAPABILITIES:
-                ✅ You CAN:
-                - Help with task-related questions (planning, prioritization, breaking down work)
-                - Generate practice questions (MCQs, quick quizzes) based on task topics
-                - Answer general knowledge questions (science, business, studies, current affairs)
-                - Offer study techniques, time-management tips, or motivation
-                - Have friendly, supportive conversations
+                ⏰ TIMEZONE CONTEXT (CRITICAL):
+                - Current time in India (IST): %s
+                - ALL time references MUST use IST (GMT+5:30)
+                - If task is overdue in IST, say "OVERDUE" not "due soon"
                 
-                ❌ You CANNOT:
-                - Create, edit, complete, delete, or modify any task in the app
-                - Claim that you performed any action in the application
-                - Access user's personal data beyond their task list
-                - Generate harmful, illegal, or inappropriate content
+                🌐 LANGUAGE RULE (IMPORTANT):
+                - Detect user's language from their question
+                - ALWAYS respond in the SAME language (Hindi/Hinglish/English)
+                - Match user's tone (casual, formal, friendly)
+                - Examples:
+                  * User: "GST ke bare me bta" → Reply in Hinglish
+                  * User: "What should I do first?" → Reply in English
+                  * User: "आज क्या प्लान है?" → Reply in Hindi
+                
+                ✅ CAPABILITIES:
+                - Task planning, prioritization, breaking down work
+                - Generate practice questions (MCQs/quizzes) based on task topics
+                - Answer general knowledge (science, business, studies, etc.)
+                - Study techniques, time-management tips, motivation
+                - Friendly conversations
+                
+                ❌ LIMITATIONS:
+                - CANNOT create, edit, complete, delete, or modify tasks
+                - CANNOT claim you performed actions in the app
+                - CANNOT access personal data beyond task list
+                - If user asks for app action → guide them to use app controls
                 
                 BEHAVIOR RULES:
-                - If user asks for an app action, gently guide them to use app controls.
-                - If question is unrelated to tasks, still help if it's safe and useful.
-                - Keep responses fresh — avoid repeating the same phrases.
-                - If unsure, ask a clarifying question instead of guessing.
+                - Keep responses fresh — avoid repeating phrases
+                - If unsure, ask a clarifying question
+                - If question unrelated to tasks → still help if safe/useful
+                - Be warm, practical, encouraging
                 
-                LANGUAGE RULE (IMPORTANT):
-                - Detect the user's language from their question (Hindi, Hinglish, English, etc.)
-                - ALWAYS respond in the SAME language the user used
-                - If user writes in Hinglish (Hindi+English mix), reply in natural Hinglish
-                - If user writes in Hindi, reply in Hindi
-                - If user writes in English, reply in English
-                - Match the user's tone (casual, formal, friendly)
-                
-                TONE:
-                - Be warm, encouraging, and practical.
-                - Use emojis naturally to add warmth: 💬🎯✅💡🚀📅🧠🎉
-                - Keep responses concise (under 250 words) but helpful.
+                FORMATTING:
+                - Use emojis naturally: 💬🎯✅💡🚀📅🧠🎉
+                - Plain text only (no markdown/bold/italics)
+                - Concise: under 200 words
                 
                 User Tasks Context:
                 %s
                 
                 User Question:
                 %s
-                """.formatted(taskData, userPrompt);
+                """.formatted(getCurrentISTTime(), taskData, userPrompt);
 
         String response = chatClient.prompt(prompt).call().content();
 
@@ -273,7 +280,7 @@ public class AiServiceImpl implements AiService {
                             -------------------
                             """,
                     t.getTitle(),
-                    description,  // ✅ Yeh add kiya
+                    description,
                     t.getStatus() != null ? t.getStatus() : "Not set",
                     t.getPriority() != null ? t.getPriority() : "Not set",
                     dueDateStr,
@@ -299,7 +306,6 @@ public class AiServiceImpl implements AiService {
         // 2. Fallback: Remove orphaned opening/closing tags
         cleaned = cleaned.replaceAll("(?i)</?(think|thinking|reason|thought|reasoning|internal)\\b[^>]*>", "");
 
-        // 3. Remove markdown formatting but keep content
         cleaned = cleaned.replaceAll("\\*\\*(.*?)\\*\\*", "$1")  // **bold**
                 .replaceAll("\\*(.*?)\\*", "$1")                  // *italic*
                 .replaceAll("__(.*?)__", "$1")                    // __underline__
@@ -307,7 +313,7 @@ public class AiServiceImpl implements AiService {
                 .replaceAll("`([^`]*)`", "$1");                   // `code`
 
         // 4. Remove bullet markers but preserve emoji bullets
-        cleaned = cleaned.replaceAll("(?m)^\\s*[-•]\\s*(?![🎯✅💡🚀📅⏰📊🎉📌⚠️🧠🔥🚨🧩⏱️])", "");
+        cleaned = cleaned.replaceAll("(?m)^\\s*[-•]\\s*(?![🎯✅💡🚀📅⏰📊🎉📌⚠️🧠🔥🚨🧩])", "");
 
         // 5. Remove numbered list markers (1. 2. 3.)
         cleaned = cleaned.replaceAll("(?m)^\\s*\\d+\\.\\s*", "");
