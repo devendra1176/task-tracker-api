@@ -1,5 +1,6 @@
 package com.project.tasktracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.project.tasktracker.enums.Priority;
 import com.project.tasktracker.enums.TaskStatus;
 import jakarta.validation.constraints.FutureOrPresent;
@@ -10,6 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Getter
 @Setter
@@ -30,4 +32,7 @@ public class TaskRequestDTO {
 
     @FutureOrPresent(message = "Due date must be today or future")
     private LocalDate dueDate;
+
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime dueTime;
 }
