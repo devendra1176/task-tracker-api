@@ -42,6 +42,7 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus(dto.getStatus());
         task.setPriority(dto.getPriority());
         task.setDueDate(dto.getDueDate());
+        task.setDueTime(dto.getDueTime());
         return task;
     }
 
@@ -56,7 +57,7 @@ public class TaskServiceImpl implements TaskService {
         dto.setStatus(task.getStatus());
         dto.setPriority(task.getPriority());
         dto.setDueDate(task.getDueDate());
-
+        dto.setDueTime(task.getDueTime());
         return dto;
     }
 
@@ -119,7 +120,7 @@ public class TaskServiceImpl implements TaskService {
         existingTask.setStatus(dto.getStatus());
         existingTask.setPriority(dto.getPriority());
         existingTask.setDueDate(dto.getDueDate());
-
+        existingTask.setDueTime(dto.getDueTime());
         Task updatedTask = taskRepository.save(existingTask);
 
         log.info("Task updated successfully. id: {}, user: {}", updatedTask.getId(), currentUser.getEmail());
@@ -193,7 +194,7 @@ public class TaskServiceImpl implements TaskService {
             TaskStatus status,
             Priority priority) {
 
-        User currentUser = getCurrentUser(); // 🔥 ADD THIS
+        User currentUser = getCurrentUser();
 
         Sort sort = direction.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
@@ -228,7 +229,7 @@ public class TaskServiceImpl implements TaskService {
             String sortBy,
             String direction) {
 
-        User currentUser = getCurrentUser(); // 🔥 ADD THIS
+        User currentUser = getCurrentUser();
 
         Sort sort = direction.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
