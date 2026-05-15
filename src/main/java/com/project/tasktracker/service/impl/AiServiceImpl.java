@@ -69,14 +69,18 @@ public class AiServiceImpl implements AiService {
     private String calculateExactTimeRemaining(Task task) {
         if (task.getDueDate() == null) return "";
 
-        // Combine dueDate + dueTime into exact deadline
-        LocalTime time = task.getDueTime() != null ? task.getDueTime() : LocalTime.of(23, 59);
-        LocalDateTime deadline = LocalDateTime.of(task.getDueDate(), time);
-        LocalDateTime now = LocalDateTime.now();
+        // ✅ CRITICAL: Use IST timezone for BOTH now and deadline
+        ZoneId ist = ZoneId.of("Asia/Kolkata");
 
-        long hoursLeft = ChronoUnit.HOURS.between(now, deadline);
-        long minutesLeft = ChronoUnit.MINUTES.between(now, deadline) % 60;
-        long totalMinutesLeft = ChronoUnit.MINUTES.between(now, deadline);
+        LocalTime time = task.getDueTime() != null ? task.getDueTime() : LocalTime.of(23, 59);
+
+        LocalDateTime deadline = LocalDateTime.of(task.getDueDate(), time);
+
+        LocalDateTime nowIST = LocalDateTime.now(ist);
+
+        long hoursLeft = ChronoUnit.HOURS.between(nowIST, deadline);
+        long minutesLeft = ChronoUnit.MINUTES.between(nowIST, deadline) % 60;
+        long totalMinutesLeft = ChronoUnit.MINUTES.between(nowIST, deadline);
 
         // Task is overdue
         if (totalMinutesLeft < 0) {
@@ -88,11 +92,9 @@ public class AiServiceImpl implements AiService {
             return "OVERDUE by " + overdueMinutes + "m 🚨";
         }
 
-
         if (hoursLeft == 0 && minutesLeft > 0) {
             return "Due in " + minutesLeft + "m 🚨";
         }
-
 
         if (hoursLeft < 3) {
             return "Due in " + hoursLeft + "h " + minutesLeft + "m 🔥";
