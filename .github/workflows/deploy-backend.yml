@@ -48,9 +48,8 @@ jobs:
         run: |
           cd task-tracker-api
           mvn test
-      
       - name: 🚀 Deploy to EC2
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -92,7 +91,7 @@ jobs:
             fi
       
       - name: 📢 Deployment Complete
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         run: |
           echo "✅ Deployment to EC2 completed successfully!"
           echo "🌐 Application URL: https://tasktracker.api.devendra.indevs.in"
