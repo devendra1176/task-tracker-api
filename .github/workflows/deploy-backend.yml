@@ -1,0 +1,95 @@
+name: 🚀 Deploy Backend to EC2
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'task-tracker-api/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'task-tracker-api/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: ☕ Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: 🗃️ Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      
+      - name: 🔨 Build with Maven
+        run: |
+          cd task-tracker-api
+          mvn clean package -DskipTests
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+      
+      - name: 🧪 Run Tests
+        if: github.event_name == 'pull_request'
+        run: |
+          cd task-tracker-api
+          mvn test
+      
+      - name: 🚀 Deploy to EC2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            echo "🔄 Starting deployment..."
+            
+            APP_DIR=~/task-tracker/task-tracker-api
+            JAR_NAME=task-tracker-api-0.0.1-SNAPSHOT.jar
+            
+            echo "🛑 Stopping service..."
+            sudo systemctl stop task-tracker
+            
+            echo "💾 Creating backup..."
+            cd $APP_DIR
+            if [ -f target/$JAR_NAME ]; then
+              cp target/$JAR_NAME target/$JAR_NAME.backup
+            fi
+            
+            echo "▶️ Starting service..."
+            sudo systemctl start task-tracker
+            
+            echo "⏳ Waiting for application to start..."
+            sleep 15
+            
+            echo "🏥 Running health check..."
+            if curl -f http://localhost:8080/actuator/health > /dev/null 2>&1; then
+              echo "✅ Deployment successful! Application is healthy."
+            else
+              echo "❌ Health check failed! Attempting rollback..."
+              if [ -f target/$JAR_NAME.backup ]; then
+                cp target/$JAR_NAME.backup target/$JAR_NAME
+                sudo systemctl restart task-tracker
+                echo "🔄 Rolled back to previous version."
+              fi
+              exit 1
+            fi
+      
+      - name: 📢 Deployment Complete
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "✅ Deployment to EC2 completed successfully!"
+          echo "🌐 Application URL: https://tasktracker.api.devendra.indevs.in"
