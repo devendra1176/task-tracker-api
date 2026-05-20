@@ -21,6 +21,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,7 +50,6 @@ public class TaskServiceImpl implements TaskService {
 
     // ENTITY → DTO
     private TaskResponseDTO mapToDTO(Task task) {
-
         TaskResponseDTO dto = new TaskResponseDTO();
 
         dto.setId(task.getId());
@@ -58,7 +59,50 @@ public class TaskServiceImpl implements TaskService {
         dto.setPriority(task.getPriority());
         dto.setDueDate(task.getDueDate());
         dto.setDueTime(task.getDueTime());
+
+        // NEW: Combined display string for UI
+        if (task.getDueDate() != null && task.getDueTime() != null) {
+            String date = task.getDueDate().format(DateTimeFormatter.ofPattern("dd/MM/yy"));
+            String time = task.getDueTime().format(DateTimeFormatter.ofPattern("hh:mm a"));
+            dto.setDueDateTimeDisplay(date + " | " + time);
+
+            // NEW: Calculate if task is overdue
+            LocalDateTime dueDateTime = LocalDateTime.of(task.getDueDate(), task.getDueTime());
+            boolean isOverdue = LocalDateTime.now().isAfter(dueDateTime) &&
+                    task.getStatus() != TaskStatus.DONE;
+            dto.setOverdue(isOverdue);
+        } else {
+            dto.setDueDateTimeDisplay("No due date");
+            dto.setOverdue(false);
+        }
+
         return dto;
+    }
+
+    // Helper method for creating Sort with multi-field support
+    private Sort createSort(String sortBy, String direction) {
+
+        // Special case: dueDateTime = sort by dueDate first, then dueTime
+        if ("dueDateTime".equalsIgnoreCase(sortBy)) {
+            if (direction.equalsIgnoreCase("asc")) {
+                return Sort.by(
+                        Sort.Order.asc("dueDate"),
+                        Sort.Order.asc("dueTime")
+                );
+            } else {
+                return Sort.by(
+                        Sort.Order.desc("dueDate"),
+                        Sort.Order.desc("dueTime")
+                );
+            }
+        }
+
+        // Default: single field sorting
+        if (direction.equalsIgnoreCase("asc")) {
+            return Sort.by(sortBy).ascending();
+        } else {
+            return Sort.by(sortBy).descending();
+        }
     }
 
     @Override
@@ -168,10 +212,7 @@ public class TaskServiceImpl implements TaskService {
             String sortBy,
             String direction) {
 
-        Sort sort = direction.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-
+        Sort sort = createSort(sortBy, direction);  // ← Helper method call
         Pageable pageable = PageRequest.of(page, size, sort);
 
         User currentUser = getCurrentUser();
@@ -196,10 +237,7 @@ public class TaskServiceImpl implements TaskService {
 
         User currentUser = getCurrentUser();
 
-        Sort sort = direction.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-
+        Sort sort = createSort(sortBy, direction);  // ← Helper method call
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Task> taskPage;
@@ -231,10 +269,7 @@ public class TaskServiceImpl implements TaskService {
 
         User currentUser = getCurrentUser();
 
-        Sort sort = direction.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-
+        Sort sort = createSort(sortBy, direction);  // ← Helper method call
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Task> taskPage = taskRepository

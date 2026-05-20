@@ -51,8 +51,8 @@ public class TaskController {
     @GetMapping
     public ResponseEntity<ApiResponse<PagedResponse<TaskResponseDTO>>> getTasks(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "dueDateTime") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
         log.info("Received request to fetch tasks. page={}, size={}, sortBy={}, direction={}",
@@ -157,8 +157,8 @@ public class TaskController {
     @GetMapping("/filter")
     public ResponseEntity<ApiResponse<PagedResponse<TaskResponseDTO>>> getFilteredTasks(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "dueDateTime") String sortBy,
             @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) TaskStatus status,
             @RequestParam(required = false) Priority priority) {
@@ -192,8 +192,8 @@ public class TaskController {
     public ResponseEntity<ApiResponse<PagedResponse<TaskResponseDTO>>> searchTasks(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "dueDateTime") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
         log.info("Received request to search tasks. keyword={}, page={}, size={}, sortBy={}, direction={}",

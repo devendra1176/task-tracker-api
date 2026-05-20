@@ -18,4 +18,6 @@ public class TaskResponseDTO {
     private Priority priority;
     private LocalDate dueDate;
     private LocalTime dueTime;
+    private String dueDateTimeDisplay;
+    private boolean isOverdue;
 }
