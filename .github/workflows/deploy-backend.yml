@@ -39,7 +39,6 @@ jobs:
       
       - name: 🔨 Build with Maven
         run: |
-          cd task-tracker-api
           mvn clean package -DskipTests
         env:
           MAVEN_OPTS: "-Xmx2g"
