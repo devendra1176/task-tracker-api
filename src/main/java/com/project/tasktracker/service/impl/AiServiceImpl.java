@@ -23,8 +23,11 @@ import java.util.List;
 public class AiServiceImpl implements AiService {
 
     private static final int AI_TASK_LIMIT = 20;
-    private static final int MAX_RESPONSE_LENGTH = 500; // Safety limit for response length
     private static final Logger log = LoggerFactory.getLogger(AiServiceImpl.class);
+
+    // Response length limits (characters, ~4-5 chars per word)
+    private static final int MAX_SUMMARY_LENGTH = 3200;   // ~800 words
+    private static final int MAX_ASK_LENGTH = 4000;        // ~1000 words
 
     private final ChatClient chatClient;
 
@@ -47,70 +50,107 @@ public class AiServiceImpl implements AiService {
                 .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a (zzz)"));
     }
 
-    private String calculateTimeRemaining(LocalDate dueDate) {
-        if (dueDate == null) return "No due date";
+    /**
+     * Calculates human-friendly time remaining (for display)
+     */
+    private String toHumanReadableTime(Task task) {
+        if (task.getDueDate() == null) return "No specific deadline.";
 
-        LocalDate today = LocalDate.now();
-        long days = ChronoUnit.DAYS.between(today, dueDate);
+        ZoneId ist = ZoneId.of("Asia/Kolkata");
+        LocalTime time = task.getDueTime() != null ? task.getDueTime() : LocalTime.of(23, 59);
+        LocalDateTime deadline = LocalDateTime.of(task.getDueDate(), time);
+        LocalDateTime now = LocalDateTime.now(ist);
 
-        if (days < 0) return "⚠️ Overdue by " + Math.abs(days) + " day" + (Math.abs(days) > 1 ? "s" : "");
-        if (days == 0) return "🔥 Due TODAY";
-        if (days == 1) return "⚠️ Due tomorrow plan tonight!";
-        if (days <= 3) return "🚨 Due in " + days + " days";
-        if (days <= 7) return "Due in " + days + " days";
+        Duration diff = Duration.between(now, deadline);
 
-        long weeks = days / 7;
-        if (weeks <= 4) return "Due in ~" + weeks + " week" + (weeks > 1 ? "s" : "");
+        if (diff.isNegative()) {
+            long days = Math.abs(diff.toDays());
+            if (days == 0) return "Overdue since today.";
+            return "Overdue by " + days + " day(s).";
+        }
 
-        long months = days / 30;
-        return "Due in ~" + months + " month" + (months > 1 ? "s" : "");
+        long hours = diff.toHours();
+
+        if (hours < 1) return "due in less than an hour.";
+        if (hours < 24) return "due later today.";
+        if (hours < 48) return "due tomorrow.";
+
+        long days = diff.toDays();
+        if (days <= 3) return "due in " + days + " days.";
+        return "due in about " + (days / 7 + 1) + " week(s).";
     }
 
+    /**
+     * Calculates exact time remaining (for precise display)
+     */
     private String calculateExactTimeRemaining(Task task) {
         if (task.getDueDate() == null) return "";
 
-        // ✅ CRITICAL: Use IST timezone for BOTH now and deadline
         ZoneId ist = ZoneId.of("Asia/Kolkata");
-
         LocalTime time = task.getDueTime() != null ? task.getDueTime() : LocalTime.of(23, 59);
-
         LocalDateTime deadline = LocalDateTime.of(task.getDueDate(), time);
-
         LocalDateTime nowIST = LocalDateTime.now(ist);
 
         long hoursLeft = ChronoUnit.HOURS.between(nowIST, deadline);
         long minutesLeft = ChronoUnit.MINUTES.between(nowIST, deadline) % 60;
         long totalMinutesLeft = ChronoUnit.MINUTES.between(nowIST, deadline);
 
-        // Task is overdue
         if (totalMinutesLeft < 0) {
             long overdueHours = Math.abs(hoursLeft);
             long overdueMinutes = Math.abs(minutesLeft);
-            if (overdueHours > 0) {
-                return "OVERDUE by " + overdueHours + "h " + overdueMinutes + "m 🚨";
-            }
-            return "OVERDUE by " + overdueMinutes + "m 🚨";
+            return overdueHours > 0
+                    ? "OVERDUE by " + overdueHours + "hours" + overdueMinutes + "minutes"
+                    : "OVERDUE by " + overdueMinutes + "minutes";
         }
 
-        if (hoursLeft == 0 && minutesLeft > 0) {
-            return "Due in " + minutesLeft + "m 🚨";
-        }
+        if (hoursLeft == 0 && minutesLeft > 0) return "Due in " + minutesLeft + "minutes";
+        if (hoursLeft < 3) return "Due in " + hoursLeft + "hours" + minutesLeft + "minutes";
+        if (hoursLeft < 24) return "Due in " + hoursLeft + "hours";
+        if (hoursLeft < 48) return "Due in ~" + hoursLeft + "hours";
 
-        if (hoursLeft < 3) {
-            return "Due in " + hoursLeft + "h " + minutesLeft + "m 🔥";
-        }
+        return "";
+    }
 
-        // Due today
-        if (hoursLeft < 24) {
-            return "Due in " + hoursLeft + "h ⏰";
-        }
+    /**
+     * Suggests Productivity Techniques based on Task Description & Urgency
+     */
+    private String suggestProductivityTechnique(Task task, Duration timeLeft) {
+        String desc = task.getDescription() != null ? task.getDescription().toLowerCase() : "";
 
-        // Due tomorrow
-        if (hoursLeft < 48) {
-            return "Due in ~" + hoursLeft + "h";
+        if (desc.contains("study") || desc.contains("learn") || desc.contains("read")) {
+            return "Try the Feynman Technique: Learn it by explaining it simply.";
         }
+        if (desc.contains("report") || desc.contains("write") || desc.contains("essay")) {
+            return "Use Time Blocking: Set aside a dedicated slot for deep work.";
+        }
+        if (task.getPriority() != null && task.getPriority().name().equals("HIGH")
+                && !timeLeft.isNegative() && timeLeft.toHours() < 4) {
+            return "Apply 'Eat That Frog': Tackle the hardest part first, right now.";
+        }
+        if (task.getPriority() != null && task.getPriority().name().equals("LOW")
+                && !timeLeft.isNegative() && timeLeft.toHours() < 1) {
+            return "Use the 2-Minute Rule: If it takes less than 2 mins, do it NOW.";
+        }
+        return "Break this task into smaller, manageable steps.";
+    }
 
-        return ""; // Not urgent enough for exact time
+    /**
+     * Suggests Next Logical Step based on Description
+     */
+    private String suggestNextStep(String description) {
+        if (description == null) return "Review your progress.";
+        String desc = description.toLowerCase();
+
+        if (desc.contains("study") || desc.contains("learn"))
+            return "Take a practice quiz or teach someone else to solidify it.";
+        if (desc.contains("meeting") || desc.contains("call"))
+            return "Send a follow-up email or meeting notes.";
+        if (desc.contains("write") || desc.contains("report"))
+            return "Proofread your draft or share it for feedback.";
+        if (desc.contains("bug") || desc.contains("fix"))
+            return "Test the fix thoroughly in a staging environment.";
+
+        return "What is the smallest version of this you can finish in 15 minutes?";
     }
 
     @Override
@@ -124,6 +164,7 @@ public class AiServiceImpl implements AiService {
 
         String taskData = buildTaskContext(tasks);
 
+        // Prompt bound: ~600 words for AI generation
         String prompt = """
                 You are an AI productivity assistant inside a task tracker application.
                 
@@ -140,13 +181,13 @@ public class AiServiceImpl implements AiService {
                 YOUR JOB:
                 1. Acknowledge completed tasks first (celebrate wins ✅)
                 2. Highlight what needs attention now (priority + time left)
-                3. Suggest 1-2 practical next steps
+                3. Suggest 1-2 practical next steps using the "Recommended Technique" field
                 4. Keep tone supportive, not alarming
                 
                 FORMATTING RULES:
                 - Use emojis naturally: 📊🎯✅💡🚀📅⏰
                 - Plain text only (no markdown, bold, italics)
-                - Concise: under 120 words
+                - Concise: under 600 words for generation
                 - Natural, human tone
                 
                 ENDING RULE (Strictly Follow):
@@ -154,22 +195,21 @@ public class AiServiceImpl implements AiService {
                 - Otherwise → Find the single most urgent incomplete task and add:
                   "⏰ Next up: [Task Name] ([Exact Time or Time Left])
                   Need help planning? Just ask! 💬"
+                - ALWAYS end with a short, relevant motivational or work-related quote 
+                  that fits the user's current task situation.
                 
-                User Tasks:
-                %s
+                - User Tasks:
+                  %s
                 """.formatted(getCurrentISTTime(), taskData);
+
         String response = chatClient.prompt(prompt).call().content();
 
-        // Safety: Handle null response from AI
         if (response == null) {
             log.warn("AI returned null response for summary");
             return "🤔 I couldn't generate a summary right now. Please try again!";
         }
 
-        log.debug("Raw AI summary (first 200 chars): {}",
-                response.substring(0, Math.min(200, response.length())));
-
-        return cleanAiText(response);
+        return cleanAiText(response, MAX_SUMMARY_LENGTH);
     }
 
     @Override
@@ -178,6 +218,7 @@ public class AiServiceImpl implements AiService {
         List<Task> tasks = getUserTasks(currentUser);
         String taskData = tasks.isEmpty() ? "No tasks yet." : buildTaskContext(tasks);
 
+        // Prompt bound: ~800 words for AI generation
         String prompt = """
                 You are a helpful, multilingual AI assistant inside a productivity app.
                 
@@ -187,37 +228,30 @@ public class AiServiceImpl implements AiService {
                 - If task is overdue in IST, say "OVERDUE" not "due soon"
                 
                 🌐 LANGUAGE RULE (IMPORTANT):
-                - Detect user's language from their question
+                - Detect user's language from their question (If you can't detect language prefer English as default language)
                 - ALWAYS respond in the SAME language (Hindi/Hinglish/English)
                 - Match user's tone (casual, formal, friendly)
-                - Examples:
-                  * User: "GST ke bare me bta" → Reply in Hinglish
-                  * User: "What should I do first?" → Reply in English
-                  * User: "आज क्या प्लान है?" → Reply in Hindi
                 
                 ✅ CAPABILITIES:
                 - Task planning, prioritization, breaking down work
-                - Generate practice questions (MCQs/quizzes) based on task topics
-                - Answer general knowledge (science, business, studies, etc.)
-                - Study techniques, time-management tips, motivation
-                - Friendly conversations
+                - Generate practice questions based on task topics
+                - Answer general knowledge, study techniques, time-management tips
+                - Friendly conversations with contextual advice
                 
                 ❌ LIMITATIONS:
                 - CANNOT create, edit, complete, delete, or modify tasks
                 - CANNOT claim you performed actions in the app
-                - CANNOT access personal data beyond task list
                 - If user asks for app action → guide them to use app controls
                 
                 BEHAVIOR RULES:
                 - Keep responses fresh — avoid repeating phrases
                 - If unsure, ask a clarifying question
-                - If question unrelated to tasks → still help if safe/useful
                 - Be warm, practical, encouraging
                 
                 FORMATTING:
-                - Use emojis naturally: 💬🎯✅💡🚀📅🧠🎉
+                - Use emojis naturally: 💬🎯✅💡🚀📅🧠🎉⭐️⏳
                 - Plain text only (no markdown/bold/italics)
-                - Concise: under 200 words
+                - Concise: under 800 words for generation
                 
                 User Tasks Context:
                 %s
@@ -228,13 +262,12 @@ public class AiServiceImpl implements AiService {
 
         String response = chatClient.prompt(prompt).call().content();
 
-        // Safety: Handle null response from AI
         if (response == null) {
             log.warn("AI returned null response for question: {}", userPrompt);
             return "🤔 I couldn't process that right now. Please try again!";
         }
 
-        return cleanAiText(response);
+        return cleanAiText(response, MAX_ASK_LENGTH);
     }
 
     private List<Task> getUserTasks(User currentUser) {
@@ -246,95 +279,98 @@ public class AiServiceImpl implements AiService {
     private String buildTaskContext(List<Task> tasks) {
         StringBuilder sb = new StringBuilder();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd MMM yyyy");
-        DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("hh:mm a");
 
         for (Task t : tasks) {
-            String dueDateStr = (t.getDueDate() != null)
-                    ? t.getDueDate().format(fmt)
-                    : "Not set";
-
-            String dueTimeStr = (t.getDueTime() != null)
-                    ? " at " + t.getDueTime().format(timeFmt)
-                    : "";
-
-            String timeRemaining = (t.getDueDate() != null)
-                    ? calculateTimeRemaining(t.getDueDate())
-                    : "No deadline";
-
-            String exactTime = (t.getDueDate() != null)
-                    ? calculateExactTimeRemaining(t)
-                    : "";
-
-
             String description = safeValue(t.getDescription());
-            // Truncate if too long (AI context limit)
-            if (description.length() > 200) {
-                description = description.substring(0, 197) + "...";
+            if (description.length() > 450) {
+                description = description.substring(0, 450) + "...";
             }
+
+            // ✅ FIX: Actually call the helper methods here
+            String humanTime = (t.getDueDate() != null) ? toHumanReadableTime(t) : "No deadline";
+
+            Duration timeLeft = Duration.ZERO;
+            if (t.getDueDate() != null) {
+                ZoneId ist = ZoneId.of("Asia/Kolkata");
+                LocalTime time = t.getDueTime() != null ? t.getDueTime() : LocalTime.of(23, 59);
+                LocalDateTime deadline = LocalDateTime.of(t.getDueDate(), time);
+                timeLeft = Duration.between(LocalDateTime.now(ist), deadline);
+            }
+            String technique = suggestProductivityTechnique(t, timeLeft);
+            String nextStep = suggestNextStep(t.getDescription());
 
             sb.append(String.format("""
                             [Task] %s
                             Description: %s
                             Status: %s | Priority: %s
-                            Due Date: %s%s
-                            Time Left: %s
-                            Exact Time: %s
+                            Due Date: %s
+                            Exact Time Remaining: %s
+                            Human Time Estimate: %s
+                            Recommended Technique: %s
+                            Probable Next Step: %s
                             -------------------
                             """,
                     t.getTitle(),
                     description,
                     t.getStatus() != null ? t.getStatus() : "Not set",
                     t.getPriority() != null ? t.getPriority() : "Not set",
-                    dueDateStr,
-                    dueTimeStr,
-                    timeRemaining,
-                    exactTime
+                    t.getDueDate() != null ? t.getDueDate().format(fmt) : "Not set",
+                    t.getDueDate() != null ? calculateExactTimeRemaining(t) : "No deadline",
+                    humanTime,
+                    technique,
+                    nextStep
             ));
         }
         return sb.toString();
     }
 
-    private String cleanAiText(String text) {
+    /**
+     * Clean AI response text with configurable max length
+     */
+    private String cleanAiText(String text, int maxLength) {
         if (text == null || text.isBlank()) {
             return "🤔 I could not generate a response right now. Please try again.";
         }
 
         String cleaned = text;
 
-        // 1. Remove thinking/reasoning blocks (multiline, case-insensitive)
-        // Handles: <think>, <thinking>, <reason>, etc.
+        // 1. Remove thinking/reasoning blocks
         cleaned = cleaned.replaceAll("(?is)<(think|thinking|reason|thought|reasoning|internal)\\b[^>]*>.*?</\\1>", "");
-
-        // 2. Fallback: Remove orphaned opening/closing tags
         cleaned = cleaned.replaceAll("(?i)</?(think|thinking|reason|thought|reasoning|internal)\\b[^>]*>", "");
 
-        cleaned = cleaned.replaceAll("\\*\\*(.*?)\\*\\*", "$1")  // **bold**
-                .replaceAll("\\*(.*?)\\*", "$1")                  // *italic*
-                .replaceAll("__(.*?)__", "$1")                    // __underline__
-                .replaceAll("_(.*?)_", "$1")                      // _italic_
-                .replaceAll("`([^`]*)`", "$1");                   // `code`
+        // 2. Remove markdown formatting
+        cleaned = cleaned.replaceAll("\\*\\*(.*?)\\*\\*", "$1")
+                .replaceAll("\\*(.*?)\\*", "$1")
+                .replaceAll("__(.*?)__", "$1")
+                .replaceAll("_(.*?)_", "$1")
+                .replaceAll("`([^`]*)`", "$1");
 
-        // 4. Remove bullet markers but preserve emoji bullets
-        cleaned = cleaned.replaceAll("(?m)^\\s*[-•]\\s*(?![🎯✅💡🚀📅⏰📊🎉📌⚠️🧠🔥🚨🧩])", "");
+        // 3. Remove bullet markers but preserve emoji bullets
+        cleaned = cleaned.replaceAll("(?m)^\\s*[-•]\\s*(?![🎯✅💡🚀📅⏰📊🎉📌⚠️🧠🔥🧩⭐])", "");
 
-        // 5. Remove numbered list markers (1. 2. 3.)
+        // 4. Remove numbered list markers
         cleaned = cleaned.replaceAll("(?m)^\\s*\\d+\\.\\s*", "");
 
-        // 6. Clean up excessive newlines (max 2 consecutive)
+        // 5. Clean up excessive newlines
         cleaned = cleaned.replaceAll("\\n{3,}", "\n\n");
 
-        // 7. Apply length limit for safety
-        if (cleaned.length() > MAX_RESPONSE_LENGTH) {
-            cleaned = cleaned.substring(0, MAX_RESPONSE_LENGTH - 3) + "...";
+        // 6. Apply length limit
+        if (cleaned.length() > maxLength) {
+            cleaned = cleaned.substring(0, maxLength - 3) + "...";
         }
 
-        // 8. Final trim + fallback if empty
+        // 7. Final trim + fallback
         cleaned = cleaned.trim();
         if (cleaned.isBlank()) {
             return "✨ Here's a quick thought: Focus on one small step forward. You've got this! 💪";
         }
 
         return cleaned;
+    }
+
+    // Overload for backward compatibility
+    private String cleanAiText(String text) {
+        return cleanAiText(text, MAX_SUMMARY_LENGTH);
     }
 
     private String safeValue(String value) {
