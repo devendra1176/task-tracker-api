@@ -20,6 +20,7 @@ database design, AI integration, and automated CI/CD workflows.
 
 > This repository contains the **backend API**. The frontend is maintained in a separate repository and deployed
 > independently.
+
 ---
 
 ## Live Application
@@ -29,6 +30,7 @@ https://tasktracker.app.devendra.indevs.in
 
 **Backend API:**
 https://tasktracker.api.devendra.indevs.in
+
 ---
 
 ## Why This Project?
@@ -75,6 +77,7 @@ The project focuses on:
 ### AI Assistant:
 
 ![img_2.png](img_2.png)
+
 <details>
 <summary> View generated content of AI Assistant: </summary>
 
@@ -134,7 +137,9 @@ Need help breaking down any task into 15-min chunks? Want practice questions for
 
 P.S. The app's timer shows System Design task is 10h20m overdue. You can adjust deadlines in the app settings if needed.
 🛠️
+
 ---
+
 </details>
 
 ### Authentication (Front Page):
@@ -186,7 +191,7 @@ P.S. The app's timer shows System Design task is 10h20m overdue. You can adjust 
 
 ## Architecture
 
-```text
+```
 Client / Frontend
         │
         ▼
