@@ -72,11 +72,11 @@ The project focuses on:
 
 ### Dashboard:
 
-![img_1.png](img_1.png)
+![Dashboard.png](docs/images/Dashboard.png)
 
 ### AI Assistant:
 
-![img_2.png](img_2.png)
+![Ai_Assistant.png](docs/images/Ai_Assistant.png)
 
 <details>
 <summary> View generated content of AI Assistant: </summary>
@@ -144,15 +144,15 @@ P.S. The app's timer shows System Design task is 10h20m overdue. You can adjust 
 
 ### Authentication (Front Page):
 
-![img.png](img.png)
+![Authentication.png](docs/images/Authentication.png)
 
 ### AWS EC2 Infrastructure
 
-![img_3.png](img_3.png)
+![AWS_EC2.png](docs/images/AWS_EC2.png)
 
 ### Amazon RDS PostgreSQL
 
-![img_6.png](img_6.png)
+![AWS_RDS.png](docs/images/AWS_RDS.png)
 
 ---
 
